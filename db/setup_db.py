@@ -50,13 +50,17 @@ def register_connector(topic_name: str):
             "auto.create": "false",
             "auto.evolve": "false",
             "insert.mode": "upsert",
-            "pk.mode": "record_value",
+            "pk.mode": "record_key",
             "pk.fields": "id",
             "table.name.format": topic_name,
             # "schemas.enable": "true",
             "value.converter": "org.apache.kafka.connect.json.JsonConverter",
             "value.converter.schemas.enable": "true",
-            "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+            # "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+            "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+            "key.converter.schemas.enable": "true",
+            "delete.enabled": "true",
+            "delete.key.fields": "id",
             # "key.converter.schemas.enable": "false"
         }
     }
