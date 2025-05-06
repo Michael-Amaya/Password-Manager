@@ -87,14 +87,16 @@ def standup_stack(conn: psycopg2.extensions.connection, topics: list[str]) -> bo
             with open(f'sql/{sql_file}', 'r') as f:
                 sql = f.read()
             result = run_sql(conn, sql)
-            print(result)
+            if not result:
+                print(f"Failed to run {sql_file}")
         
         for topic in topics:
             create_topic(topic, os.environ['KAFKA_BROKER'])
 
         for topic in topics:
             reg = register_connector(topic)
-            print(f"Registered connector for {topic}: {reg}")
+            if not reg:
+                print(f"Failed to register connector for {topic}")
         
         conn.close()
     except:
@@ -123,14 +125,15 @@ def delete_stack(conn: psycopg2.extensions.connection, topics: list[str]) -> boo
     conn.commit()
 
     for topic in topics:
-        delete_connector(topic)
+        result = delete_connector(topic)
+        if not result:
+            print(f"Failed to delete connector for {topic}")
 
     conn.close()
     return True
 
 
 if __name__ == '__main__':
-    print("here")
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--mode', help='mode create or delete', default='create')
     args = parser.parse_args()
@@ -139,7 +142,6 @@ if __name__ == '__main__':
         exit(1)
 
     load_dotenv()
-    print("here2")
 
     conn = psycopg2.connect(
         host=os.environ['POSTGRES_HOST'],
