@@ -2,7 +2,6 @@ package utils
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 
 	"github.com/jackc/pgx/v5"
@@ -44,14 +43,11 @@ func PGInsert(structure interface{}, topic string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("key: %s\n", string(key))
 
 	message, err := DeduceValueSchema(structure)
 	if err != nil {
 		return err
 	}
-
-	fmt.Printf("message: %+v\n", message)
 
 	err = producer.Produce(topic, key, message)
 	if err != nil {
@@ -72,7 +68,6 @@ func PGDelete(structure interface{}, topic string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("key: %s\n", string(key))
 
 	producer.Produce(topic, key, nil)
 	return producer.Commit()
