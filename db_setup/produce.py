@@ -51,6 +51,6 @@ key = {
 producer.send('users', key=json.dumps(key).encode('utf-8'), value = json.dumps(payload).encode('utf-8'))
 
 # Example to delete from table
-producer.send('users', key=json.dumps(key).encode('utf-8'), value = None)
+# producer.send('users', key=json.dumps(key).encode('utf-8'), value = None)
 
 producer.flush()
