@@ -38,8 +38,6 @@ func DeduceKeySchema[T any](keyStruct T) ([]byte, error) {
 		},
 	}
 
-	fmt.Printf("Key: %+v\n", key)
-
 	keyBytes, err := json.Marshal(key)
 	if err != nil {
 		return nil, err
@@ -108,12 +106,5 @@ func DeduceValueSchema[T any](valueStruct T) (map[string]interface{}, error) {
 		"payload": payload,
 	}
 
-	fmt.Printf("Value: %+v\n", valueSchema)
 	return valueSchema, nil
-	// valueBytes, err := json.Marshal(valueSchema)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// return valueBytes, nil
 }
