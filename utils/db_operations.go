@@ -2,10 +2,19 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"reflect"
+	"strings"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
+
+type DBEntry struct {
+	UID     uuid.UUID
+	SQLData map[string]any
+	Table   string
+}
 
 func PGQuery[T any](ctx context.Context, conn *pgx.Conn, query string, args ...interface{}) ([]T, error) {
 	rows, err := conn.Query(ctx, query, args...)
@@ -32,45 +41,13 @@ func PGQuery[T any](ctx context.Context, conn *pgx.Conn, query string, args ...i
 	return results, rows.Err()
 }
 
-func PGInsert(structure interface{}, topic string) error {
-	producer, err := NewKafkaProducer("localhost:9092", "password_manager_producer")
-	if err != nil {
-		return err
-	}
-	defer producer.Close() // Commit and close the producer at the end of the program
+func PGInsert(structure interface{}, table string) error {
 
-	key, err := DeduceKeySchema(structure) // Returns *key that is a json marshalled map of a valid key
-	if err != nil {
-		return err
-	}
-
-	message, err := DeduceValueSchema(structure)
-	if err != nil {
-		return err
-	}
-
-	err = producer.Produce(topic, key, message)
-	if err != nil {
-		return err
-	}
-
-	return producer.Commit()
+	return errors.New("not implemented")
 }
 
 func PGDelete(structure interface{}, topic string) error {
-	producer, err := NewKafkaProducer("localhost:9092", "password_manager_producer")
-	if err != nil {
-		return err
-	}
-	defer producer.Close() // Commit and close the producer at the end of the program
-
-	key, err := DeduceKeySchema(structure) // Returns *key that is a json marshalled map of a valid key
-	if err != nil {
-		return err
-	}
-
-	producer.Produce(topic, key, nil)
-	return producer.Commit()
+	return errors.New("not implemented")
 }
 
 // ------------------------- Local Utils -------------------------
@@ -82,4 +59,60 @@ func getFieldPointers[T any](ptr *T) ([]any, error) {
 		fields[i] = val.Field(i).Addr().Interface()
 	}
 	return fields, nil
+}
+
+func GenerateSQLStructure(obj interface{}) ([]*DBEntry, error) {
+	var entries []*DBEntry
+	convertToSQL(obj, map[uintptr]*DBEntry{}, &entries)
+	return entries, nil
+}
+
+func convertToSQL(obj interface{}, visited map[uintptr]*DBEntry, entries *[]*DBEntry) (*DBEntry, error) {
+	// Always ensure we're working with a pointer to a struct
+	val := reflect.ValueOf(obj)
+	if val.Kind() == reflect.Struct {
+		valPtr := reflect.New(val.Type())
+		valPtr.Elem().Set(val)
+		val = valPtr
+	} else if val.Kind() != reflect.Ptr || val.Elem().Kind() != reflect.Struct {
+		return nil, errors.New("expected struct or pointer to struct")
+	}
+
+	ptr := val.Pointer()
+	if existing, ok := visited[ptr]; ok {
+		return existing, nil
+	}
+
+	elem := val.Elem()
+	typ := elem.Type()
+	table := strings.ToLower(typ.Name())
+
+	entry := &DBEntry{
+		UID:     uuid.New(),
+		SQLData: make(map[string]any),
+		Table:   table,
+	}
+	visited[ptr] = entry
+
+	for i := 0; i < elem.NumField(); i++ {
+		field := elem.Field(i)
+		fieldType := typ.Field(i)
+		col := strings.ToLower(fieldType.Name)
+
+		if field.Kind() == reflect.Struct {
+			if field.CanAddr() {
+				childPtr := field.Addr().Interface()
+				childEntry, err := convertToSQL(childPtr, visited, entries)
+				if err != nil {
+					return nil, err
+				}
+				entry.SQLData[col+"_ref"] = childEntry.UID
+			}
+		} else {
+			entry.SQLData[col] = field.Interface()
+		}
+	}
+
+	*entries = append(*entries, entry)
+	return entry, nil
 }

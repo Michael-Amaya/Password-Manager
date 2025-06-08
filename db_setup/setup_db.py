@@ -1,30 +1,8 @@
 import os
-import yaml
 import requests
-import psycopg2
 import argparse
 import traceback
 from dotenv import load_dotenv
-from kafka.admin import KafkaAdminClient, NewTopic
-
-
-def create_topic(topic: str, broker: str) -> bool:
-    admin_client = KafkaAdminClient(
-        bootstrap_servers=broker,
-        client_id='topic-creator'
-    )
-
-    new_topic = NewTopic(
-        name=topic,
-        num_partitions=1,
-        replication_factor=1
-    )
-    try:
-        # return admin_client.create_topics([new_topic])
-        admin_client.create_topics([new_topic], validate_only=False)
-        return True
-    except:
-        return False
 
 
 def run_sql(connection: psycopg2.extensions.connection, sql: str) -> bool:
@@ -38,100 +16,11 @@ def run_sql(connection: psycopg2.extensions.connection, sql: str) -> bool:
         return False
 
 
-def register_connector(topic_name: str):
-    url = f'http://{os.environ["KAFKA_CONNECT"]}/connectors'
-    data = {
-        "name": f"{topic_name}-connector",
-        "config": {
-            "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
-            "tasks.max": "1",
-            "topics": topic_name,
-            "connection.url": f"jdbc:postgresql://postgres:5432/{os.environ['POSTGRES_DB']}?user={os.environ['POSTGRES_USER']}&password={os.environ['POSTGRES_PASSWORD']}",
-            "auto.create": "false",
-            "auto.evolve": "false",
-            "insert.mode": "upsert",
-            "pk.mode": "record_key",
-            "pk.fields": "id",
-            "table.name.format": topic_name,
-            # "schemas.enable": "true",
-            "value.converter": "org.apache.kafka.connect.json.JsonConverter",
-            "value.converter.schemas.enable": "true",
-            # "key.converter": "org.apache.kafka.connect.storage.StringConverter",
-            "key.converter": "org.apache.kafka.connect.json.JsonConverter",
-            "key.converter.schemas.enable": "true",
-            "delete.enabled": "true",
-            "delete.key.fields": "id",
-            # "key.converter.schemas.enable": "false"
-        }
-    }
-    response = requests.post(url, json=data)
-    if response.status_code == 201:
-        return True
-    else:
-        print(response.status_code)
-        print(response.text)
-        return False
+def setup_stack():
+    pass
 
-def delete_connector(topic_name: str):
-    url = f'http://{os.environ["KAFKA_CONNECT"]}/connectors/{topic_name}-connector'
-    response = requests.delete(url)
-    if response.status_code == 204:
-        return True
-    else:
-        return False
-
-def standup_stack(conn: psycopg2.extensions.connection, topics: list[str]) -> bool:
-    sql_files = os.listdir('sql')
-    try:
-        for sql_file in sql_files:
-            with open(f'sql/{sql_file}', 'r') as f:
-                sql = f.read()
-            result = run_sql(conn, sql)
-            if not result:
-                print(f"Failed to run {sql_file}")
-        
-        for topic in topics:
-            create_topic(topic, os.environ['KAFKA_BROKER'])
-
-        for topic in topics:
-            reg = register_connector(topic)
-            if not reg:
-                print(f"Failed to register connector for {topic}")
-        
-        conn.close()
-    except:
-        return False
-
-    return True
-
-
-def delete_stack(conn: psycopg2.extensions.connection, topics: list[str]) -> bool:
-    admin_client = KafkaAdminClient(
-        bootstrap_servers=os.environ['KAFKA_BROKER'],
-        client_id='topic-deleter'
-    )
-
-    try:
-        admin_client.delete_topics(topics)
-    except:
-        return False
-
-    cursor = conn.cursor()
-    cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';")
-    tables = cursor.fetchall()
-    for table in tables:
-        sql = f"DROP TABLE IF EXISTS {table[0]} CASCADE;"
-        cursor.execute(sql)
-    conn.commit()
-
-    for topic in topics:
-        result = delete_connector(topic)
-        if not result:
-            print(f"Failed to delete connector for {topic}")
-
-    conn.close()
-    return True
-
+def delete_stack():
+    pass
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -150,10 +39,6 @@ if __name__ == '__main__':
         password=os.environ['POSTGRES_PASSWORD'],
         dbname=os.environ['POSTGRES_DB']
     )
-
-    with open('topics.yml', 'r') as f:
-        topic_config = yaml.safe_load(f)
-    topics = topic_config['topics']
 
     if args.mode == 'create':
         standup_stack(conn, topics)

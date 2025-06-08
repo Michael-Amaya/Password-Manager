@@ -1,5 +1,2 @@
 psycopg2
-kafka-python
-pyyaml
 dotenv
-requests
